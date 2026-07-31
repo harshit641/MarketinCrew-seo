@@ -1,0 +1,45 @@
+# MarketinCrew SEO Command Center — local development stack
+# Usage:
+#   docker compose up -d           # start Postgres + Redis
+#   npm run db:migrate             # apply schema
+#   npm run seed                   # load demo data
+#   npm run dev                    # start the app on :3000
+#
+# Production deployment uses the same Postgres image; Redis is optional in the
+# MVP (the app falls back to an in-process job runner when REDIS_URL is empty).
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: mkseo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mkseo
+      POSTGRES_PASSWORD: mkseo_dev_pw
+      POSTGRES_DB: mkseo_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - mkseo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mkseo -d mkseo_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    # Optional. Used for queues / caching / rate limiting in Phase 2+.
+    # When REDIS_URL is empty the app uses an in-process task runner.
+    image: redis:7-alpine
+    container_name: mkseo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mkseo_pgdata:

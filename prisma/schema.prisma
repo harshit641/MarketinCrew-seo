@@ -1,0 +1,1319 @@
+// ===========================================================================
+// MarketinCrew SEO Command Center — Prisma schema
+// ===========================================================================
+// PostgreSQL. All write-heavy query fields (clientId, date, status, ownerId,
+// employeeId, keywordId) are indexed. Soft deletion is used on the core
+// business entities (Client, Task) via a `deletedAt` nullable timestamp.
+// A null value means "not deleted".
+//
+// Prisma defaults to camelCase fields and PascalCase models; we keep that
+// convention for ergonomic TS usage.
+// ===========================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum SystemRole {
+  SUPER_ADMIN
+  SEO_MANAGER
+  SEO_EXECUTIVE
+  INTERN
+  CLIENT_VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum ContractStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+  PROSPECT
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  AWAITING_APPROVAL
+  DONE
+  BLOCKED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskCategory {
+  TECHNICAL_SEO
+  ON_PAGE_SEO
+  KEYWORD_RESEARCH
+  CONTENT_STRATEGY
+  CONTENT_WRITING
+  CONTENT_OPTIMIZATION
+  INTERNAL_LINKING
+  BACKLINK_BUILDING
+  BACKLINK_AUDIT
+  LOCAL_SEO
+  GOOGLE_BUSINESS_PROFILE
+  SCHEMA_MARKUP
+  INDEXING
+  COMPETITOR_RESEARCH
+  SEARCH_CONSOLE_ANALYSIS
+  ANALYTICS_ANALYSIS
+  REPORTING
+  CLIENT_COMMUNICATION
+  WEBSITE_IMPLEMENTATION
+  AI_SEARCH_VISIBILITY
+  OTHER
+}
+
+enum WorkLogStatus {
+  COMPLETED
+  ONGOING
+  BLOCKED
+  AWAITING_APPROVAL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum KeywordTrackingStatus {
+  ACTIVE
+  PAUSED
+  REMOVED
+}
+
+enum SearchIntent {
+  INFORMATIONAL
+  NAVIGATIONAL
+  COMMERCIAL
+  TRANSACTIONAL
+}
+
+enum LinkType {
+  DOFOLLOW
+  NOFOLLOW
+  SPONSORED
+  UGC
+}
+
+enum BacklinkStatus {
+  LIVE
+  LOST
+  BROKEN
+  PENDING
+}
+
+enum IssueSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  IGNORED
+}
+
+enum ReportType {
+  MONTHLY
+  WEEKLY
+  QUARTERLY
+  CUSTOM
+  INTERNAL
+}
+
+enum ReportStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  DELIVERED
+  SCHEDULED
+}
+
+enum ReportSectionType {
+  COVER
+  REPORTING_PERIOD
+  EXECUTIVE_SUMMARY
+  GOALS_PROGRESS
+  KEY_KPI
+  ORGANIC_SEARCH_CONSOLE
+  ORGANIC_ANALYTICS
+  KEYWORD_RANKING_SUMMARY
+  RANKING_DISTRIBUTION
+  TOP_RANKING_IMPROVEMENTS
+  RANKING_DECLINES
+  LANDING_PAGE_PERFORMANCE
+  BACKLINK_SUMMARY
+  TECHNICAL_SEO_SUMMARY
+  CONTENT_SUMMARY
+  TASKS_COMPLETED
+  WORK_BY_CATEGORY
+  KEY_WINS
+  ISSUES_RISKS
+  RECOMMENDATIONS
+  NEXT_MONTH_PLAN
+  METHODOLOGY
+}
+
+enum GoalType {
+  INCREASE_ORGANIC_CLICKS
+  INCREASE_ORGANIC_CONVERSIONS
+  IMPROVE_TOP10_KEYWORDS
+  IMPROVE_LOCAL_VISIBILITY
+  INCREASE_NON_BRANDED_TRAFFIC
+  INCREASE_REFERRING_DOMAINS
+  RESOLVE_INDEXING
+  IMPROVE_CORE_WEB_VITALS
+  PUBLISH_OPTIMIZE_PAGES
+  IMPROVE_PRODUCT_SERVICE_LOCATION
+  CUSTOM
+}
+
+enum GoalStatus {
+  ON_TRACK
+  AT_RISK
+  ACHIEVED
+  BEHIND
+  NOT_STARTED
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum AlertCategory {
+  RANKING_DECLINE
+  CLICK_DECLINE
+  TRAFFIC_DECLINE
+  CONVERSION_DECLINE
+  INDEXING_FAILURE
+  LOST_BACKLINK
+  BROKEN_BACKLINK
+  TECHNICAL_DECLINE
+  SYNC_FAILURE
+  INTEGRATION_DISCONNECTED
+  OVERDUE_TASK
+  MISSING_WORKLOG
+  REPORT_DUE
+  REPORT_AWAITING_APPROVAL
+  GOAL_AT_RISK
+}
+
+enum IntegrationProvider {
+  GOOGLE_SEARCH_CONSOLE
+  GA4
+  DATAFORSEO
+  AHREFS
+  SEMRUSH
+  PAGESPEED
+  SCREAMING_FROG
+  MANUAL
+  DEMO
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+  EXPIRED
+  NEVER_CONNECTED
+}
+
+enum SyncStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+  RUNNING
+}
+
+enum ContentType {
+  LANDING_PAGE
+  BLOG_POST
+  PRODUCT_PAGE
+  SERVICE_PAGE
+  CATEGORY_PAGE
+  HOMEPAGE
+  OTHER
+}
+
+enum ContentStatus {
+  PLANNED
+  IN_BRIEF
+  IN_PROGRESS
+  IN_REVIEW
+  PUBLISHED
+  OPTIMIZING
+  REFRESHED
+  DECAYED
+}
+
+enum Device {
+  DESKTOP
+  MOBILE
+  TABLET
+}
+
+// ===========================================================================
+// ORGANIZATION / RBAC
+// ===========================================================================
+
+model Organization {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  logoUrl       String?
+  primaryColor  String   @default("#0f172a")
+  secondaryColor String  @default("#2563eb")
+  reportFooter  String?
+  supportEmail  String?
+  portalDomain  String?
+  emailSenderName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users         User[]
+  clients       Client[]
+  auditLogs     AuditLog[]
+  taskTemplates TaskTemplate[]
+}
+
+model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  name            String
+  passwordHash    String?
+  role            SystemRole     @default(SEO_EXECUTIVE)
+  status          UserStatus     @default(ACTIVE)
+  avatarUrl       String?
+  jobTitle        String?
+  twoFactorEnabled Boolean       @default(false)
+  lastLoginAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+
+  employee        Employee?
+  clientMemberships ClientMember[]
+
+  sessions        Session[]
+  ownedTasks      Task[]         @relation("TaskOwner")
+  assignedTasks   Task[]         @relation("TaskAssignee")
+  createdTasks    Task[]         @relation("TaskCreator")
+  workLogs        WorkLog[]
+  approvals       WorkLogApproval[]
+  reportsCreated  Report[]       @relation("ReportCreator")
+  reportsApproved Report[]       @relation("ReportApprover")
+  comments        Comment[]
+  attachments     Attachment[]
+  annotations     Annotation[]
+  backlinksOwned  Backlink[]     @relation("BacklinkOwner")
+  auditActions    AuditLog[]
+  notifications   Notification[]
+
+  @@index([organizationId])
+  @@index([role])
+  @@index([status])
+}
+
+model Employee {
+  // 1:1 with User for staff (managers + executives). Lets us track capacity,
+  // complexity points and quality scores independent of the login account.
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId  String
+  weeklyCapacityMinutes Int @default(1800) // 30h
+  hireDate        DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assignments     ClientAssignment[]
+  workLogs        WorkLog[]
+  tasks           Task[]   @relation("TaskAssigneeEmployee")
+
+  @@index([organizationId])
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token       String   @unique
+  expiresAt   DateTime
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// CLIENTS
+// ---------------------------------------------------------------------------
+
+model Client {
+  id              String         @id @default(cuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  name            String
+  slug            String
+  websiteUrl      String
+  industry        String?
+  country         String?
+  city            String?
+  timezone        String         @default("UTC")
+  startDate       DateTime?
+  contractStatus  ContractStatus @default(ACTIVE)
+  servicePackage  String?
+  monthlyReportDay Int           @default(1)
+  primaryContact  String?
+  contactEmail    String?
+  logoUrl         String?
+
+  // SEO setup
+  primaryDomain   String?
+  additionalDomains String[]
+  targetLocations String[]
+  targetLanguages String[]
+  trackingDevicePreference Device @default(DESKTOP)
+  competitorDomains String[]
+  reportingCurrency String      @default("USD")
+  reportingPreferences Json?
+  clientGoalsText  String?
+
+  isDemo          Boolean        @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  assignments     ClientAssignment[]
+  members         ClientMember[]
+  goals           ClientGoal[]
+  integrations    ClientIntegration[]
+  competitors     Competitor[]
+  tasks           Task[]
+  workLogs        WorkLog[]
+  workLogItems    WorkLogItem[]
+  keywords        Keyword[]
+  keywordGroups   KeywordGroup[]
+  searchConsole   SearchConsoleSnapshot[]
+  analytics       AnalyticsSnapshot[]
+  landingPages    LandingPageSnapshot[]
+  backlinks       Backlink[]
+  technicalIssues TechnicalIssue[]
+  pageSpeed       PageSpeedSnapshot[]
+  contentPages    ContentPage[]
+  contentTasks    ContentTask[]
+  reports         Report[]
+  alerts          AlertEvent[]
+  annotations     Annotation[]
+  attachments     Attachment[]
+  comments        Comment[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, deletedAt])
+  @@index([contractStatus])
+}
+
+// Staff assignment to a client (manager / executive), with role on that client.
+model ClientAssignment {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role        SystemRole @default(SEO_EXECUTIVE)
+  createdAt   DateTime @default(now())
+
+  @@unique([clientId, employeeId])
+  @@index([clientId])
+  @@index([employeeId])
+}
+
+// Portal access for client viewers. Scoped to a single client.
+model ClientMember {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([clientId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// GOALS / KPIs
+// ---------------------------------------------------------------------------
+
+model ClientGoal {
+  id          String     @id @default(cuid())
+  clientId    String
+  client      Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type        GoalType
+  title       String
+  baselineValue Float?
+  targetValue Float?
+  currentValue Float?
+  unit        String?
+  startDate   DateTime
+  endDate     DateTime?
+  status      GoalStatus @default(NOT_STARTED)
+  ownerId     String?
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([clientId, status])
+}
+
+// ---------------------------------------------------------------------------
+// TASKS
+// ---------------------------------------------------------------------------
+
+model Task {
+  id              String       @id @default(cuid())
+  clientId        String
+  client          Client       @relation(fields: [clientId], references: [id])
+  title           String
+  category        TaskCategory
+  description     String?
+  priority        TaskPriority @default(MEDIUM)
+  status          TaskStatus   @default(TODO)
+
+  createdById     String
+  createdBy       User         @relation("TaskCreator", fields: [createdById], references: [id])
+  ownerId         String?
+  owner           User?        @relation("TaskOwner", fields: [ownerId], references: [id])
+  assigneeId      String?
+  assignee        User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assigneeEmployeeId String?
+  assigneeEmployee Employee?   @relation("TaskAssigneeEmployee", fields: [assigneeEmployeeId], references: [id])
+
+  startDate       DateTime?
+  dueDate         DateTime?
+  completedAt     DateTime?
+
+  estimatedMinutes Int?
+  actualApprovedMinutes Int?   @default(0)
+  complexityPoints Int         @default(1)
+
+  isRecurring     Boolean      @default(false)
+  recurrenceRule  String?
+
+  relatedUrl      String?
+  relatedKeyword  String?
+  relatedKeywordGroupId String?
+
+  approvalStatus  ApprovalStatus @default(APPROVED)
+  reworkCount     Int          @default(0)
+
+  templateSourceId String?
+
+  deletedAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  checklistItems  TaskChecklistItem[]
+  dependencies    TaskDependency[]      @relation("TaskDependent")
+  blocks          TaskDependency[]      @relation("TaskBlocking")
+  workLogItems    WorkLogItem[]
+  comments        Comment[]
+  attachments     Attachment[]
+  annotations     Annotation[]
+  technicalIssues TechnicalIssue[]
+
+  @@index([clientId, status, deletedAt])
+  @@index([assigneeId, status])
+  @@index([dueDate])
+  @@index([category])
+  @@index([approvalStatus])
+}
+
+model TaskChecklistItem {
+  id        String  @id @default(cuid())
+  taskId    String
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  text      String
+  done      Boolean @default(false)
+  order     Int     @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model TaskDependency {
+  // task (dependent) depends on blockingTask (must be done first)
+  id            String @id @default(cuid())
+  taskId        String
+  task          Task   @relation("TaskDependent", fields: [taskId], references: [id], onDelete: Cascade)
+  blockingTaskId String
+  blockingTask  Task   @relation("TaskBlocking", fields: [blockingTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, blockingTaskId])
+}
+
+model TaskTemplate {
+  id          String       @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id])
+  name         String
+  description  String?
+  category     TaskCategory @default(OTHER)
+  priority     TaskPriority @default(MEDIUM)
+  tasksJson    Json         // [{title, category, description, ...}]
+  isGlobal     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// DAILY WORK LOGS
+// ---------------------------------------------------------------------------
+
+model WorkLog {
+  // A WorkLog = one day's submission by one employee for one client.
+  // It can contain multiple WorkLogItem entries (multi-entry daily log).
+  id              String       @id @default(cuid())
+  clientId        String
+  client          Client       @relation(fields: [clientId], references: [id])
+  employeeId      String
+  employee        Employee     @relation(fields: [employeeId], references: [id])
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+
+  date            DateTime
+  status          WorkLogStatus @default(COMPLETED)
+  approvalStatus  ApprovalStatus @default(PENDING)
+
+  isDraft         Boolean      @default(false)
+  submittedAt     DateTime?
+  totalMinutes    Int          @default(0)
+  billableMinutes Int          @default(0)
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  items           WorkLogItem[]
+  approvals       WorkLogApproval[]
+  attachments     Attachment[]
+
+  @@index([clientId, date])
+  @@index([employeeId, date])
+  @@index([approvalStatus])
+  @@index([userId])
+}
+
+model WorkLogItem {
+  // A single activity within a daily submission. A daily log can span MULTIPLE
+  // clients — each item optionally carries its own clientId (defaults to the
+  // parent WorkLog's client). This is what makes the item auto-flow into the
+  // correct client's "work completed" tab.
+  id              String       @id @default(cuid())
+  workLogId       String
+  workLog         WorkLog      @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+
+  clientId        String?
+  client          Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  taskId          String?
+  task            Task?        @relation(fields: [taskId], references: [id])
+  category        TaskCategory
+  workCompleted   String
+  deliverable     String?
+  urlWorkedOn     String?
+  keywordWorkedOn String?
+  minutesSpent    Int          @default(0)
+  status          WorkLogStatus @default(COMPLETED)
+  evidenceUrl     String?
+  blocker         String?
+  nextAction      String?
+  internalNote    String?
+  clientVisibleSummary String?
+  billable        Boolean      @default(true)
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([workLogId])
+  @@index([clientId])
+  @@index([taskId])
+  @@index([category])
+}
+
+model WorkLogApproval {
+  id          String        @id @default(cuid())
+  workLogId   String
+  workLog     WorkLog       @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+  approverId  String
+  approver    User          @relation(fields: [approverId], references: [id])
+  status      ApprovalStatus
+  note        String?
+  createdAt   DateTime      @default(now())
+
+  @@index([workLogId])
+  @@index([approverId])
+}
+
+// ---------------------------------------------------------------------------
+// KEYWORDS / RANKINGS
+// ---------------------------------------------------------------------------
+
+model KeywordGroup {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  color       String?
+  createdAt   DateTime @default(now())
+
+  keywords    Keyword[]
+
+  @@unique([clientId, name])
+  @@index([clientId])
+}
+
+model Keyword {
+  id                  String                @id @default(cuid())
+  clientId            String
+  client              Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  keyword             String
+  keywordGroupId      String?
+  keywordGroup        KeywordGroup?         @relation(fields: [keywordGroupId], references: [id], onDelete: SetNull)
+
+  searchIntent        SearchIntent?
+  targetUrl           String?
+  rankingUrl          String?
+
+  country             String                @default("US")
+  city                String?
+  language            String                @default("en")
+  device              Device                @default(DESKTOP)
+  searchEngine        String                @default("google")
+
+  isBrand             Boolean               @default(false)
+  isPrimary           Boolean               @default(true)
+
+  searchVolume        Int?
+  difficulty          Int?
+  cpc                 Float?
+
+  baselinePosition    Int?                  // Not in top 100 = 101
+  currentPosition     Int?
+  previousPosition    Int?
+  bestPosition        Int?
+
+  trackingStatus      KeywordTrackingStatus @default(ACTIVE)
+  priority            Int                   @default(3) // 1 (low) - 5 (high)
+  tags                String[]
+  notes               String?
+  dateAdded           DateTime              @default(now())
+
+  snapshots           KeywordSnapshot[]
+  competitorSnapshots CompetitorKeywordSnapshot[]
+
+  @@unique([clientId, keyword, country, city, device, searchEngine])
+  @@index([clientId, trackingStatus])
+  @@index([keywordGroupId])
+  @@index([isBrand])
+  @@index([currentPosition])
+}
+
+// Historical ranking snapshot. position 101 = "Not in top 100".
+model KeywordSnapshot {
+  id            String   @id @default(cuid())
+  keywordId     String
+  keyword       Keyword  @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  clientId      String
+  date          DateTime
+  position      Int
+  rankingUrl    String?
+  searchEngine  String   @default("google")
+  device        Device   @default(DESKTOP)
+  location      String?
+  serpFeatures  String[]
+  localPackPosition Int?
+  dataProvider  IntegrationProvider @default(MANUAL)
+  syncStatus    SyncStatus @default(SUCCESS)
+  createdAt     DateTime @default(now())
+
+  @@unique([keywordId, date, device, searchEngine, location])
+  @@index([keywordId, date])
+  @@index([clientId, date])
+}
+
+// ---------------------------------------------------------------------------
+// COMPETITORS
+// ---------------------------------------------------------------------------
+
+model Competitor {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  domain      String
+  name        String?
+  createdAt   DateTime @default(now())
+
+  snapshots   CompetitorKeywordSnapshot[]
+
+  @@unique([clientId, domain])
+  @@index([clientId])
+}
+
+model CompetitorKeywordSnapshot {
+  id            String     @id @default(cuid())
+  competitorId  String
+  competitor    Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  keywordId     String
+  keyword       Keyword    @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  date          DateTime
+  position      Int?
+  visibilityScore Float?
+  createdAt     DateTime   @default(now())
+
+  @@index([competitorId, date])
+  @@index([keywordId, date])
+}
+
+// ---------------------------------------------------------------------------
+// SEARCH CONSOLE / ANALYTICS SNAPSHOTS
+// ---------------------------------------------------------------------------
+
+model SearchConsoleSnapshot {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date        DateTime
+  query       String?
+  page        String?
+  country     String?
+  device      String?
+  searchAppearance String?
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  ctr         Float    @default(0)
+  position    Float?   // GSC average position — DIFFERENT from exact SERP rank
+  isBranded   Boolean?
+  dataProvider IntegrationProvider @default(MANUAL)
+  createdAt   DateTime @default(now())
+
+  @@index([clientId, date])
+  @@index([clientId, query])
+  @@index([clientId, page])
+}
+
+model AnalyticsSnapshot {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date            DateTime
+  sessions        Int      @default(0)
+  users           Int      @default(0)
+  newUsers        Int      @default(0)
+  engagedSessions Int?
+  engagementRate  Float?
+  avgEngagementTimeSec Float?
+  pageviews       Int?
+  conversions     Int      @default(0)
+  conversionRate  Float?
+  revenue         Float?
+  transactions    Int?
+  device          String?
+  country         String?
+  city            String?
+  sourceMedium    String?
+  dataProvider    IntegrationProvider @default(MANUAL)
+  createdAt       DateTime @default(now())
+
+  @@index([clientId, date])
+}
+
+model LandingPageSnapshot {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date        DateTime
+  page        String
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  ctr         Float    @default(0)
+  position    Float?
+  sessions    Int      @default(0)
+  conversions Int      @default(0)
+  dataProvider IntegrationProvider @default(MANUAL)
+  createdAt   DateTime @default(now())
+
+  @@index([clientId, date])
+  @@index([clientId, page])
+}
+
+// ---------------------------------------------------------------------------
+// BACKLINKS
+// ---------------------------------------------------------------------------
+
+model Backlink {
+  id              String         @id @default(cuid())
+  clientId        String
+  client          Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  sourceUrl       String
+  sourceDomain    String
+  targetUrl       String
+  anchorText      String?
+  linkType        LinkType       @default(DOFOLLOW)
+
+  firstSeenAt     DateTime?
+  acquiredAt      DateTime?
+  lastCheckedAt   DateTime?
+  lostAt          DateTime?
+  status          BacklinkStatus @default(LIVE)
+  httpStatus      Int?
+
+  domainRating    Int?
+  urlRating       Int?
+  spamRisk        Int?
+  referringDomain String?
+  trafficEstimate Int?
+  country         String?
+
+  linkBuildingMethod String?
+  ownerId         String?
+  owner           User?          @relation("BacklinkOwner", fields: [ownerId], references: [id])
+  vendor          String?
+  cost            Float?
+  campaign        String?
+  evidence        String?
+  notes           String?
+  approvalStatus  ApprovalStatus @default(APPROVED)
+
+  checks          BacklinkCheck[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([clientId, status])
+  @@index([sourceDomain])
+  @@index([targetUrl])
+  @@index([acquiredAt])
+}
+
+model BacklinkCheck {
+  id          String   @id @default(cuid())
+  backlinkId  String
+  backlink    Backlink @relation(fields: [backlinkId], references: [id], onDelete: Cascade)
+  checkedAt   DateTime @default(now())
+  isLive      Boolean
+  httpStatus  Int?
+  linkType    LinkType?
+  error       String?
+
+  @@index([backlinkId, checkedAt])
+}
+
+// ---------------------------------------------------------------------------
+// TECHNICAL SEO
+// ---------------------------------------------------------------------------
+
+model TechnicalIssue {
+  id            String        @id @default(cuid())
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  url           String
+  category      String
+  severity      IssueSeverity @default(MEDIUM)
+  description   String?
+  recommendedFix String?
+  assignedToId  String?
+  taskId        String?
+  task          Task?         @relation(fields: [taskId], references: [id])
+  status        IssueStatus   @default(OPEN)
+  source        IntegrationProvider @default(MANUAL)
+  evidence      String?
+  firstSeenAt   DateTime      @default(now())
+  lastSeenAt    DateTime      @default(now())
+  resolvedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([clientId, status, severity])
+  @@index([clientId, url])
+}
+
+model PageSpeedSnapshot {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  url         String
+  device      Device
+  date        DateTime
+  performance Int?
+  accessibility Int?
+  bestPractices Int?
+  seo         Int?
+  lcp         Float?   // ms
+  inp         Float?
+  cls         Float?
+  fcp         Float?
+  speedIndex  Float?
+  tbt         Float?
+  dataProvider IntegrationProvider @default(PAGESPEED)
+  createdAt   DateTime @default(now())
+
+  @@index([clientId, url, device, date])
+}
+
+// ---------------------------------------------------------------------------
+// CONTENT / ON-PAGE
+// ---------------------------------------------------------------------------
+
+model ContentPage {
+  id                String        @id @default(cuid())
+  clientId          String
+  client            Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  url               String
+  pageType          ContentType   @default(LANDING_PAGE)
+  primaryKeywordId  String?
+  primaryKeyword    String?
+  secondaryKeywords String[]
+  searchIntent      SearchIntent?
+  currentTitle      String?
+  proposedTitle     String?
+  currentMetaDescription String?
+  proposedMetaDescription String?
+  h1                String?
+  contentStatus     ContentStatus @default(PLANNED)
+  wordCount         Int?
+  contentOwnerId    String?
+  optimizationOwnerId String?
+  publishDate       DateTime?
+  lastUpdatedAt     DateTime?
+  internalLinksAdded Int          @default(0)
+  schemaType        String?
+  indexingStatus    String?
+  baselineClicks    Int?
+  currentClicks     Int?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  tasks             ContentTask[]
+
+  @@index([clientId, contentStatus])
+  @@index([clientId, url])
+}
+
+model ContentTask {
+  id              String   @id @default(cuid())
+  contentPageId   String
+  contentPage     ContentPage @relation(fields: [contentPageId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title           String
+  dueDate         DateTime?
+  done            Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([contentPageId])
+  @@index([clientId])
+}
+
+// ---------------------------------------------------------------------------
+// REPORTS
+// ---------------------------------------------------------------------------
+
+model Report {
+  id              String       @id @default(cuid())
+  clientId        String
+  client          Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type            ReportType   @default(MONTHLY)
+  status          ReportStatus @default(DRAFT)
+  title           String
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  createdById     String
+  createdBy       User         @relation("ReportCreator", fields: [createdById], references: [id])
+  approvedById    String?
+  approver        User?        @relation("ReportApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+
+  executiveSummary String?
+  keyWins          String?
+  issuesRisks      String?
+  recommendations  String?
+  nextMonthPlan    String?
+
+  isClientFacing   Boolean     @default(true)
+  includeApprovedOnly Boolean  @default(true)
+
+  shareToken       String?     @unique
+  sharePasswordHash String?
+  shareExpiresAt   DateTime?
+  pdfUrl           String?
+
+  publishedAt      DateTime?
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  sections         ReportSection[]
+  versions         ReportVersion[]
+
+  @@index([clientId, status])
+  @@index([createdById])
+  @@index([status])
+}
+
+model ReportSection {
+  id          String           @id @default(cuid())
+  reportId    String
+  report      Report           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  type        ReportSectionType
+  title       String
+  order       Int
+  isEnabled   Boolean          @default(true)
+  commentary  String?
+  config      Json?
+
+  @@index([reportId, order])
+}
+
+model ReportVersion {
+  id          String   @id @default(cuid())
+  reportId    String
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  version     Int
+  snapshot    Json
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  @@index([reportId, version])
+}
+
+// ---------------------------------------------------------------------------
+// ALERTS
+// ---------------------------------------------------------------------------
+
+model AlertRule {
+  // Configurable per-client thresholds for automatic alert evaluation.
+  id          String        @id @default(cuid())
+  organizationId String
+  clientId    String?
+  category    AlertCategory
+  severity    AlertSeverity @default(WARNING)
+  threshold   Float?
+  channel     String        @default("in_app,email")
+  isEnabled   Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+
+  @@index([organizationId, isEnabled])
+  @@index([clientId])
+}
+
+model AlertEvent {
+  id          String        @id @default(cuid())
+  clientId    String?
+  client      Client?       @relation(fields: [clientId], references: [id])
+  category    AlertCategory
+  severity    AlertSeverity @default(WARNING)
+  message     String
+  metadata    Json?
+  status      AlertStatus   @default(ACTIVE)
+  acknowledgedById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([clientId, status])
+  @@index([category, status])
+  @@index([createdAt])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  message     String
+  url         String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+// ---------------------------------------------------------------------------
+// INTEGRATIONS / SYNC
+// ---------------------------------------------------------------------------
+
+model ClientIntegration {
+  id              String             @id @default(cuid())
+  clientId        String
+  client          Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  provider        IntegrationProvider
+  label           String?
+  status          IntegrationStatus  @default(NEVER_CONNECTED)
+  config          Json?              // provider-specific (property id, view id, etc.)
+  // OAuth tokens / API keys are stored ENCRYPTED (see lib/crypto). Never raw.
+  encryptedCredentials String?
+  lastSyncAt      DateTime?
+  lastSyncAttemptAt DateTime?
+  lastError       String?
+  apiUsageCount   Int                @default(0)
+  apiUsageLimit   Int?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([clientId, provider])
+  @@index([clientId, status])
+}
+
+model SyncJob {
+  id          String       @id @default(cuid())
+  integrationId String?
+  provider    IntegrationProvider
+  jobType     String
+  status      SyncStatus   @default(RUNNING)
+  startedAt   DateTime     @default(now())
+  finishedAt  DateTime?
+  recordsProcessed Int     @default(0)
+  error       String?
+  metadata    Json?
+
+  logs        SyncLog[]
+
+  @@index([provider, status])
+  @@index([integrationId])
+}
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  syncJobId String
+  syncJob   SyncJob  @relation(fields: [syncJobId], references: [id], onDelete: Cascade)
+  level     String   @default("info") // info | warn | error
+  message   String
+  context   Json?
+  createdAt DateTime @default(now())
+
+  @@index([syncJobId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// SHARED
+// ---------------------------------------------------------------------------
+
+model Annotation {
+  // Marks a point in time on a performance chart (published page, fix, etc.)
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+  date        DateTime
+  title       String
+  description String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([clientId, date])
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  organizationId String
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+  workLogId   String?
+  workLog     WorkLog? @relation(fields: [workLogId], references: [id])
+  uploadedById String
+  uploadedBy  User     @relation(fields: [uploadedById], references: [id])
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String   // S3 key or local path
+  url         String?
+  createdAt   DateTime @default(now())
+
+  @@index([clientId])
+  @@index([taskId])
+  @@index([workLogId])
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  body        String
+  isClientVisible Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([taskId])
+  @@index([clientId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  actorId        String?
+  actor          User?    @relation(fields: [actorId], references: [id])
+  action         String   // e.g. "client.create", "worklog.approve"
+  entityType     String
+  entityId       String?
+  previousValue  Json?
+  newValue       Json?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([action])
+  @@index([entityType, entityId])
+}
